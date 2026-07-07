@@ -11,36 +11,39 @@ def run_viewer(
     above: o3d.geometry.PointCloud,
     clusters_agg: o3d.geometry.PointCloud,
 ) -> None:
-    """Interactive viewer; keys 1-4 switch between pipeline stages."""
+    """Interactive viewer; keys 1-4 swap geometry between pipeline stages in place."""
     stages = {"1": [raw], "2": [preprocessed], "3": [ground, above], "4": [clusters_agg]}
-    names = {"1": "Raw capture", "2": "Preprocessed", "3": "Ground + above-ground", "4": "Clustered heaps"}
+    names = {"1": "raw", "2": "preprocessed", "3": "ground+above", "4": "clusters"}
     coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=COORD_FRAME_SIZE)
-    state = {"stage": "1", "vis": None}
+    state = {"stage": "1"}
 
-    def build_window(stage: str, cam_params=None) -> o3d.visualization.VisualizerWithKeyCallback:
-        vis = o3d.visualization.VisualizerWithKeyCallback()
-        vis.create_window(window_name=f"Stockpile Pipeline - Stage {stage}: {names[stage]}", width=1280, height=800)
+    def show_stage(vis: o3d.visualization.VisualizerWithKeyCallback, stage: str) -> None:
+        state["stage"] = stage
+        vis.clear_geometries()
         for geom in stages[stage]:
-            vis.add_geometry(geom)
-        vis.add_geometry(coord_frame)
-        if cam_params is not None:
-            vis.get_view_control().convert_from_pinhole_camera_parameters(cam_params)
-        for key in "1234":
-            vis.register_key_callback(ord(key), make_switch(key))
-        return vis
+            vis.add_geometry(geom, reset_bounding_box=False)
+        vis.add_geometry(coord_frame, reset_bounding_box=False)
+        vis.update_renderer()
+        print(f"[viewer] stage: {names[stage]}")
 
     def make_switch(stage: str):
         def _switch(vis):
-            if stage == state["stage"]:
-                return False
-            cam_params = vis.get_view_control().convert_to_pinhole_camera_parameters()
-            vis.destroy_window()
-            state["stage"] = stage
-            state["vis"] = build_window(stage, cam_params)
+            if stage != state["stage"]:
+                show_stage(vis, stage)
             return False
         return _switch
 
-    state["vis"] = build_window(state["stage"])
-    while state["vis"].poll_events():
-        state["vis"].update_renderer()
-    state["vis"].destroy_window()
+    vis = o3d.visualization.VisualizerWithKeyCallback()
+    vis.create_window(window_name="Stockpile Pipeline", width=1280, height=800)
+    for key in "1234":
+        vis.register_key_callback(ord(key), make_switch(key))
+
+    print("Keys: 1=raw  2=preprocessed  3=ground+above  4=clusters  Q=quit")
+    for geom in stages[state["stage"]]:
+        vis.add_geometry(geom, reset_bounding_box=True)
+    vis.add_geometry(coord_frame, reset_bounding_box=False)
+    print(f"[viewer] stage: {names[state['stage']]}")
+
+    while vis.poll_events():
+        vis.update_renderer()
+    vis.destroy_window()

@@ -1,3 +1,7 @@
+UI/backend/.venv/
+UI/frontend/node_modules/
+UI/frontend/dist/
+
 perception/.venv/
 perception/**/__pycache__/
 perception/**/*.egg-info/
@@ -7,3 +11,6 @@ perception/**/*.egg-info/
 .DS_Store
 *.bag
 *.ply
+
+segmentation_pipeline/__pycache__
+segmentation_pipeline/**/__pycache__

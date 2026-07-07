@@ -61,3 +61,13 @@ CREATE TABLE IF NOT EXISTS flights (
 );
 
 CREATE INDEX IF NOT EXISTS idx_flights_project_id ON flights(project_id);
+
+CREATE TABLE IF NOT EXISTS flight_captures (
+    id SERIAL PRIMARY KEY,
+    flight_id INTEGER NOT NULL REFERENCES flights(id) ON DELETE CASCADE,
+    waypoint_index INTEGER NOT NULL,
+    location GEOMETRY(POINT, 4326) NOT NULL,
+    image_url VARCHAR(512) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_flight_captures_flight_id ON flight_captures(flight_id);

@@ -6,8 +6,8 @@ type SidebarProps = {
   projects: Project[];
   selectedProjectId: number | null;
   onSelectProject: (id: number) => void;
-  activePanel: 'sites' | 'flights' | 'history';
-  onPanelChange: (panel: 'sites' | 'flights' | 'history') => void;
+  activePanel: 'sites' | 'flights' | 'history' | 'captures';
+  onPanelChange: (panel: 'sites' | 'flights' | 'history' | 'captures') => void;
 };
 
 export function Sidebar({
@@ -49,6 +49,12 @@ export function Sidebar({
               description="Past & upcoming flights"
               active={activePanel === 'flights'}
               onClick={() => onPanelChange('flights')}
+            />
+            <NavLink
+              label="Captures"
+              description="Flight path images"
+              active={activePanel === 'captures'}
+              onClick={() => onPanelChange('captures')}
             />
             <NavLink
               label="History"

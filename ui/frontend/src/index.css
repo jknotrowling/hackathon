@@ -87,6 +87,57 @@ body {
   min-height: 0;
 }
 
+.captures-panel {
+  height: 100%;
+  overflow: hidden;
+}
+
+.captures-panel__flights,
+.captures-panel__points {
+  width: 220px;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--mantine-color-gray-3);
+}
+
+.captures-panel__preview {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.captures-panel__preview-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.captures-panel__scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.captures-panel__image-wrap {
+  flex: 1;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mantine-color-gray-0);
+  border-radius: var(--mantine-radius-sm);
+  overflow: hidden;
+}
+
+.captures-panel__image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
 @media (max-width: 900px) {
   .history-panel > div {
     flex-direction: column !important;

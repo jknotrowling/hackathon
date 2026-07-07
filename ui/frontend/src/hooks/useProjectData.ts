@@ -83,6 +83,14 @@ export function useFlights(projectId: number | null) {
   });
 }
 
+export function useFlightCaptures(projectId: number | null) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'flight-captures'],
+    queryFn: () => api.getFlightCaptures(projectId!),
+    enabled: projectId !== null,
+  });
+}
+
 export function useFlightMutations(projectId: number | null) {
   const queryClient = useQueryClient();
 

@@ -87,3 +87,16 @@ class Flight(Base):
     survey_id: Mapped[int | None] = mapped_column(ForeignKey("surveys.id", ondelete="SET NULL"))
 
     project: Mapped["Project"] = relationship(back_populates="flights")
+    captures: Mapped[list["FlightCapture"]] = relationship(back_populates="flight", cascade="all, delete-orphan")
+
+
+class FlightCapture(Base):
+    __tablename__ = "flight_captures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    flight_id: Mapped[int] = mapped_column(ForeignKey("flights.id", ondelete="CASCADE"), nullable=False)
+    waypoint_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    location: Mapped[str] = mapped_column(Geometry("POINT", srid=4326), nullable=False)
+    image_url: Mapped[str] = mapped_column(String(512), nullable=False)
+
+    flight: Mapped["Flight"] = relationship(back_populates="captures")

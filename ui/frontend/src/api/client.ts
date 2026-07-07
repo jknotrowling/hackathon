@@ -1,5 +1,6 @@
 import type {
   Flight,
+  FlightCapture,
   FlightCreate,
   FlightUpdate,
   GeoJSONPolygon,
@@ -72,4 +73,6 @@ export const api = {
     request<void>(`/api/flights/${flightId}`, { method: 'DELETE' }),
   planMappingFlights: (regionId: number) =>
     request<Flight[]>(`/api/rois/${regionId}/plan-flights`, { method: 'POST' }),
+  getFlightCaptures: (projectId: number) =>
+    request<FlightCapture[]>(`/api/projects/${projectId}/flight-captures`),
 };

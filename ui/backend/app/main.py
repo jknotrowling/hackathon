@@ -1,15 +1,18 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from geoalchemy2 import WKTElement
+from geoalchemy2.shape import to_shape
 from sqlalchemy import text
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine
-from app.models import Flight, Project, Region, Stockpile, StockpileMeasurement, Survey
-from app.routers import flights, projects, rois, stockpiles, surveys
+from app.models import Flight, FlightCapture, Project, Region, Stockpile, StockpileMeasurement, Survey
+from app.routers import flight_captures, flights, projects, rois, stockpiles, surveys
 
 
 def seed_database() -> None:
@@ -163,6 +166,35 @@ def seed_flights() -> None:
         db.close()
 
 
+def seed_flight_captures() -> None:
+    db = SessionLocal()
+    try:
+        if db.query(FlightCapture).first() is not None:
+            return
+
+        flights = (
+            db.query(Flight)
+            .filter(Flight.status == "completed", Flight.flight_path.isnot(None))
+            .order_by(Flight.id)
+            .all()
+        )
+        placeholder_count = 4
+        for flight in flights:
+            line = to_shape(flight.flight_path)
+            for index, (lng, lat) in enumerate(line.coords):
+                db.add(
+                    FlightCapture(
+                        flight_id=flight.id,
+                        waypoint_index=index,
+                        location=WKTElement(f"POINT({lng} {lat})", srid=4326),
+                        image_url=f"/captures/placeholder-{(index % placeholder_count) + 1}.svg",
+                    )
+                )
+        db.commit()
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     with engine.connect() as connection:
@@ -172,6 +204,7 @@ async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
     seed_database()
     seed_flights()
+    seed_flight_captures()
     yield
 
 
@@ -190,6 +223,11 @@ app.include_router(rois.router)
 app.include_router(stockpiles.router)
 app.include_router(surveys.router)
 app.include_router(flights.router)
+app.include_router(flight_captures.router)
+
+CAPTURES_DIR = Path(__file__).resolve().parent.parent / "static" / "captures"
+CAPTURES_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/captures", StaticFiles(directory=CAPTURES_DIR), name="captures")
 
 
 @app.get("/api/health")

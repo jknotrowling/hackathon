@@ -8,9 +8,11 @@ import { FlightPlanForm } from './components/flights/FlightPlanForm';
 import { Sidebar } from './components/layout/Sidebar';
 import { Toolbar } from './components/layout/Toolbar';
 import { SiteMap } from './components/map/SiteMap';
+import { CapturesPanel } from './components/panels/CapturesPanel';
 import { HistoryPanel } from './components/panels/HistoryPanel';
 import {
   useBoundary,
+  useFlightCaptures,
   useFlightMutations,
   useFlights,
   useProjects,
@@ -25,14 +27,17 @@ const HEADER_HEIGHT = 64;
 const FOOTER_HISTORY = 340;
 const FOOTER_FLIGHTS = 280;
 const FOOTER_FLIGHTS_PLANNING = 320;
+const FOOTER_CAPTURES = 340;
 
 export function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [activePanel, setActivePanel] = useState<'sites' | 'flights' | 'history'>('sites');
+  const [activePanel, setActivePanel] = useState<'sites' | 'flights' | 'history' | 'captures'>('sites');
   const [drawMode, setDrawMode] = useState(false);
   const [flightPlanMode, setFlightPlanMode] = useState(false);
   const [selectedRegionId, setSelectedRegionId] = useState<number | null>(null);
   const [selectedFlightId, setSelectedFlightId] = useState<number | null>(null);
+  const [selectedCaptureId, setSelectedCaptureId] = useState<number | null>(null);
+  const [captureFlightId, setCaptureFlightId] = useState<number | null>(null);
   const [selectedStockpileId, setSelectedStockpileId] = useState<number | null>(null);
   const [draftGeometry, setDraftGeometry] = useState<GeoJSONPolygon | null>(null);
   const [draftFlightPath, setDraftFlightPath] = useState<GeoJSONLineString | null>(null);
@@ -47,6 +52,7 @@ export function App() {
   const stockpilesQuery = useStockpiles(projectId);
   const surveysQuery = useSurveys(projectId);
   const flightsQuery = useFlights(projectId);
+  const flightCapturesQuery = useFlightCaptures(projectId);
   const regionMutations = useRegionMutations(projectId);
   const flightMutations = useFlightMutations(projectId);
 
@@ -192,7 +198,8 @@ export function App() {
         regionsQuery.isPending ||
         stockpilesQuery.isPending ||
         surveysQuery.isPending ||
-        flightsQuery.isPending));
+        flightsQuery.isPending ||
+        flightCapturesQuery.isPending));
 
   const error =
     projectsQuery.error ??
@@ -200,14 +207,17 @@ export function App() {
     regionsQuery.error ??
     stockpilesQuery.error ??
     surveysQuery.error ??
-    flightsQuery.error;
+    flightsQuery.error ??
+    flightCapturesQuery.error;
 
   const showMap = projectId !== null && !error;
-  const showFooter = activePanel === 'flights' || activePanel === 'history';
+  const showFooter = activePanel === 'flights' || activePanel === 'history' || activePanel === 'captures';
 
   const footerHeight =
-    activePanel === 'history'
-      ? FOOTER_HISTORY
+    activePanel === 'history' || activePanel === 'captures'
+      ? activePanel === 'captures'
+        ? FOOTER_CAPTURES
+        : FOOTER_HISTORY
       : activePanel === 'flights'
         ? flightPlanMode
           ? FOOTER_FLIGHTS_PLANNING
@@ -261,6 +271,8 @@ export function App() {
           setSelectedRegionId(null);
           setSelectedFlightId(null);
           setSelectedStockpileId(null);
+          setSelectedCaptureId(null);
+          setCaptureFlightId(null);
         }}
         activePanel={activePanel}
         onPanelChange={(panel) => {
@@ -269,6 +281,10 @@ export function App() {
           if (panel !== 'flights') resetFlightPlan();
           if (panel !== 'history') setSelectedStockpileId(null);
           if (panel !== 'flights') setSelectedFlightId(null);
+          if (panel !== 'captures') {
+            setSelectedCaptureId(null);
+            setCaptureFlightId(null);
+          }
         }}
       />
 
@@ -316,7 +332,20 @@ export function App() {
                 onSelectFlight={setSelectedFlightId}
                 onDraftGeometry={setDraftGeometry}
                 onDraftFlightPath={setDraftFlightPath}
-                showFlightPaths={activePanel === 'flights'}
+                showFlightPaths={activePanel === 'flights' || activePanel === 'captures'}
+                captureMode={activePanel === 'captures'}
+                flightCaptures={flightCapturesQuery.data ?? []}
+                selectedCaptureId={selectedCaptureId}
+                captureFlightId={captureFlightId}
+                onSelectCapture={(captureId) => {
+                  setSelectedCaptureId(captureId);
+                  if (captureId !== null) {
+                    const capture = flightCapturesQuery.data?.find((item) => item.id === captureId);
+                    if (capture) {
+                      setCaptureFlightId(capture.flight_id);
+                    }
+                  }
+                }}
               />
             </ErrorBoundary>
           </div>
@@ -359,6 +388,19 @@ export function App() {
                 surveys={surveysQuery.data ?? []}
                 selectedStockpileId={selectedStockpileId}
                 onSelectStockpile={setSelectedStockpileId}
+              />
+            </ErrorBoundary>
+          )}
+
+          {activePanel === 'captures' && (
+            <ErrorBoundary title="Captures panel failed to load">
+              <CapturesPanel
+                flights={flightsQuery.data ?? []}
+                captures={flightCapturesQuery.data ?? []}
+                selectedFlightId={captureFlightId}
+                selectedCaptureId={selectedCaptureId}
+                onSelectFlight={setCaptureFlightId}
+                onSelectCapture={setSelectedCaptureId}
               />
             </ErrorBoundary>
           )}

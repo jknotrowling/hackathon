@@ -51,3 +51,4 @@ export interface Survey {
 }
 
 export type { Flight, FlightCreate, FlightStatus, FlightUpdate } from './flights';
+export type { FlightCapture } from './captures';

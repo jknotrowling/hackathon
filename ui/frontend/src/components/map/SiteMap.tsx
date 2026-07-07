@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map, MapLayerMouseEvent, MapMouseEvent } from 'maplibre-gl';
 
-import type { Flight, GeoJSONLineString, GeoJSONPolygon, Region, Stockpile } from '../../types';
+import type { Flight, FlightCapture, GeoJSONLineString, GeoJSONPolygon, Region, Stockpile } from '../../types';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -19,28 +19,67 @@ type SiteMapProps = {
   onDraftGeometry: (geometry: GeoJSONPolygon | null) => void;
   onDraftFlightPath: (geometry: GeoJSONLineString | null) => void;
   showFlightPaths: boolean;
+  captureMode?: boolean;
+  flightCaptures?: FlightCapture[];
+  selectedCaptureId?: number | null;
+  captureFlightId?: number | null;
+  onSelectCapture?: (captureId: number | null) => void;
 };
 
-const SATELLITE_STYLE = {
-  version: 8,
-  sources: {
-    satellite: {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-      attribution: 'Esri World Imagery',
+const ZONE_MAP_URL = '/zone_map.png';
+
+// Georeferencing for zone_map.png — corners: top-left, top-right, bottom-right, bottom-left.
+// Defaults match the demo project boundary; updated from API boundary when available.
+const DEFAULT_MAP_COORDINATES: [
+  [number, number],
+  [number, number],
+  [number, number],
+  [number, number],
+] = [
+  [11.575, 48.142],
+  [11.585, 48.142],
+  [11.585, 48.135],
+  [11.575, 48.135],
+];
+
+function boundaryToImageCoordinates(boundary: GeoJSONPolygon): typeof DEFAULT_MAP_COORDINATES {
+  const coords = boundary.coordinates[0];
+  const lngs = coords.map((coord) => coord[0]);
+  const lats = coords.map((coord) => coord[1]);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+
+  return [
+    [minLng, maxLat],
+    [maxLng, maxLat],
+    [maxLng, minLat],
+    [minLng, minLat],
+  ];
+}
+
+function createZoneMapStyle(
+  coordinates: typeof DEFAULT_MAP_COORDINATES,
+): maplibregl.StyleSpecification {
+  return {
+    version: 8,
+    sources: {
+      'zone-map': {
+        type: 'image',
+        url: ZONE_MAP_URL,
+        coordinates,
+      },
     },
-  },
-  layers: [
-    {
-      id: 'satellite',
-      type: 'raster',
-      source: 'satellite',
-    },
-  ],
-} as maplibregl.StyleSpecification;
+    layers: [
+      {
+        id: 'zone-map',
+        type: 'raster',
+        source: 'zone-map',
+      },
+    ],
+  };
+}
 
 function polygonToFeature(id: string | number, geometry: GeoJSONPolygon, properties: Record<string, unknown>) {
   return {
@@ -109,6 +148,11 @@ export function SiteMap({
   onDraftGeometry,
   onDraftFlightPath,
   showFlightPaths,
+  captureMode = false,
+  flightCaptures = [],
+  selectedCaptureId = null,
+  captureFlightId = null,
+  onSelectCapture,
 }: SiteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
@@ -116,12 +160,14 @@ export function SiteMap({
   const flightPointsRef = useRef<[number, number][]>([]);
   const onSelectRegionRef = useRef(onSelectRegion);
   const onSelectFlightRef = useRef(onSelectFlight);
+  const onSelectCaptureRef = useRef(onSelectCapture);
   const onDraftGeometryRef = useRef(onDraftGeometry);
   const onDraftFlightPathRef = useRef(onDraftFlightPath);
   const [mapReady, setMapReady] = useState(false);
 
   onSelectRegionRef.current = onSelectRegion;
   onSelectFlightRef.current = onSelectFlight;
+  onSelectCaptureRef.current = onSelectCapture;
   onDraftGeometryRef.current = onDraftGeometry;
   onDraftFlightPathRef.current = onDraftFlightPath;
 
@@ -249,7 +295,7 @@ export function SiteMap({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: SATELLITE_STYLE,
+      style: createZoneMapStyle(DEFAULT_MAP_COORDINATES),
       center: [11.58, 48.138],
       zoom: 14,
     });
@@ -275,6 +321,17 @@ export function SiteMap({
       setMapReady(false);
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) {
+      return;
+    }
+
+    const coordinates = boundary ? boundaryToImageCoordinates(boundary) : DEFAULT_MAP_COORDINATES;
+    const source = map.getSource('zone-map') as maplibregl.ImageSource | undefined;
+    source?.setCoordinates(coordinates);
+  }, [boundary, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -450,7 +507,11 @@ export function SiteMap({
     });
 
     if (showFlightPaths) {
-      const flightFeatures = flights
+      const visibleFlights = captureMode && captureFlightId !== null
+        ? flights.filter((flight) => flight.id === captureFlightId)
+        : flights;
+
+      const flightFeatures = visibleFlights
         .filter((flight) => flight.flight_path)
         .map((flight) =>
           lineToFeature(flight.id, flight.flight_path!, {
@@ -460,10 +521,29 @@ export function SiteMap({
           }),
         );
 
-      const flightPointFeatures = flights.flatMap((flight) => flightPathToPointFeatures(flight));
+      const flightPointFeatures = captureMode
+        ? []
+        : visibleFlights.flatMap((flight) => flightPathToPointFeatures(flight));
+
+      const visibleCaptures = captureMode && captureFlightId !== null
+        ? flightCaptures.filter((capture) => capture.flight_id === captureFlightId)
+        : captureMode
+          ? flightCaptures
+          : [];
+
+      const captureFeatures = visibleCaptures.map((capture) => ({
+        type: 'Feature' as const,
+        properties: {
+          id: capture.id,
+          flight_id: capture.flight_id,
+          waypoint_index: capture.waypoint_index,
+        },
+        geometry: capture.location,
+      }));
 
       upsertSource('flights', { type: 'FeatureCollection', features: flightFeatures });
       upsertSource('flight-points', { type: 'FeatureCollection', features: flightPointFeatures });
+      upsertSource('flight-captures', { type: 'FeatureCollection', features: captureFeatures });
 
       if (!map.getLayer('flight-path-completed')) {
         map.addLayer({
@@ -556,18 +636,55 @@ export function SiteMap({
           baseColor,
         ]);
       }
+
+      if (captureMode) {
+        upsertLayer({
+          id: 'flight-capture-points',
+          type: 'circle',
+          source: 'flight-captures',
+          paint: {
+            'circle-radius': ['case', ['==', ['get', 'id'], selectedCaptureId ?? -1], 8, 6],
+            'circle-color': [
+              'case',
+              ['==', ['get', 'id'], selectedCaptureId ?? -1],
+              '#ffd43b',
+              '#fd7e14',
+            ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          },
+        });
+
+        if (map.getLayer('flight-capture-points')) {
+          map.setPaintProperty('flight-capture-points', 'circle-radius', [
+            'case',
+            ['==', ['get', 'id'], selectedCaptureId ?? -1],
+            8,
+            6,
+          ]);
+          map.setPaintProperty('flight-capture-points', 'circle-color', [
+            'case',
+            ['==', ['get', 'id'], selectedCaptureId ?? -1],
+            '#ffd43b',
+            '#fd7e14',
+          ]);
+        }
+      } else if (map.getLayer('flight-capture-points')) {
+        map.removeLayer('flight-capture-points');
+      }
     } else {
       for (const layerId of [
         'flight-path-completed',
         'flight-path-planned',
         'flight-points-completed',
         'flight-points-planned',
+        'flight-capture-points',
       ]) {
         if (map.getLayer(layerId)) {
           map.removeLayer(layerId);
         }
       }
-      for (const sourceId of ['flights', 'flight-points']) {
+      for (const sourceId of ['flights', 'flight-points', 'flight-captures']) {
         if (map.getSource(sourceId)) {
           map.removeSource(sourceId);
         }
@@ -594,6 +711,10 @@ export function SiteMap({
     selectedRegionId,
     selectedFlightId,
     showFlightPaths,
+    captureMode,
+    flightCaptures,
+    selectedCaptureId,
+    captureFlightId,
     mapReady,
     drawMode,
     flightPlanMode,
@@ -619,6 +740,13 @@ export function SiteMap({
       }
     };
 
+    const handleCaptureClick = (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      if (feature?.properties?.id != null) {
+        onSelectCaptureRef.current?.(Number(feature.properties.id));
+      }
+    };
+
     if (map.getLayer('roi-fill')) {
       map.on('click', 'roi-fill', handleRoiClick);
     }
@@ -634,6 +762,9 @@ export function SiteMap({
     if (map.getLayer('flight-points-planned')) {
       map.on('click', 'flight-points-planned', handleFlightClick);
     }
+    if (map.getLayer('flight-capture-points')) {
+      map.on('click', 'flight-capture-points', handleCaptureClick);
+    }
 
     return () => {
       map.off('click', 'roi-fill', handleRoiClick);
@@ -641,8 +772,9 @@ export function SiteMap({
       map.off('click', 'flight-path-planned', handleFlightClick);
       map.off('click', 'flight-points-completed', handleFlightClick);
       map.off('click', 'flight-points-planned', handleFlightClick);
+      map.off('click', 'flight-capture-points', handleCaptureClick);
     };
-  }, [mapReady, drawMode, flightPlanMode, regions, flights]);
+  }, [mapReady, drawMode, flightPlanMode, regions, flights, captureMode, flightCaptures]);
 
   return <div ref={containerRef} className="map-container" />;
 }

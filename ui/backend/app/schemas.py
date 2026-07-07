@@ -27,6 +27,11 @@ class GeoJSONLineString(BaseModel):
     coordinates: list[list[float]]
 
 
+class GeoJSONPoint(BaseModel):
+    type: str = "Point"
+    coordinates: list[float]
+
+
 class RegionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     geometry: GeoJSONPolygon
@@ -91,3 +96,25 @@ class FlightResponse(BaseModel):
     flight_path: dict[str, Any] | None = None
     notes: str | None = None
     survey_id: int | None = None
+
+
+class FlightCaptureResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    flight_id: int
+    waypoint_index: int
+    location: dict[str, Any]
+    image_url: str
+
+
+class FlightCaptureCreate(BaseModel):
+    waypoint_index: int = Field(ge=0)
+    location: GeoJSONPoint
+    image_url: str = Field(min_length=1, max_length=512)
+
+
+class FlightCaptureUpdate(BaseModel):
+    waypoint_index: int | None = Field(default=None, ge=0)
+    location: GeoJSONPoint | None = None
+    image_url: str | None = Field(default=None, min_length=1, max_length=512)

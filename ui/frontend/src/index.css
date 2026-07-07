@@ -1,0 +1,34 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.mantine-AppShell-main {
+  min-height: calc(100dvh - 64px - 360px);
+}
+
+.mantine-AppShell-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+@media (max-width: 900px) {
+  .mantine-AppShell-footer {
+    grid-template-columns: 1fr;
+    height: auto !important;
+  }
+}

@@ -1,3 +1,7 @@
+UI/backend/.venv/
+UI/frontend/node_modules/
+UI/frontend/dist/
+
 perception/.venv/
 perception/**/__pycache__/
 perception/**/*.egg-info/

@@ -1,0 +1,9 @@
+perception/.venv/
+perception/**/__pycache__/
+perception/**/*.egg-info/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+*.bag
+*.ply

@@ -43,11 +43,19 @@ class RGBDSiteMapper:
         print("[*] Robot-Arm RGB-D Mapping Pipeline bereit.")
 
     def _accumulate_object_3d(
-        self, binary_mask, point_cloud_grid, arm_x, arm_y, arm_z, yaw_deg
+        self,
+        binary_mask,
+        point_cloud_grid,
+        arm_x,
+        arm_y,
+        arm_z,
+        roll_deg,
+        pitch_deg,
+        yaw_deg,  # NEU: Volle 6DOF Orientierung
     ):
         """
-        Nimmt das geordnete 3D-Grid der RealSense, transformiert die maskierten Punkte
-        über die Kinematik des Roboterarms in globale Koordinaten und updatet die Karten.
+        Transformiert die RealSense-Punktwolke über volle 6DOF-Kinematik
+        in globale Koordinaten und updatet die Karten.
         """
         # 1. Maske auf das geordnete 3D-Grid anwenden
         v_coords, u_coords = np.where(binary_mask)
@@ -57,31 +65,36 @@ class RGBDSiteMapper:
         # Extrahiere die lokalen Kamerapunkte (X, Y, Z in Metern) für die Maske
         local_points = point_cloud_grid[v_coords, u_coords]
 
-        x_cam = local_points[:, 0]
-        y_cam = local_points[:, 1]
+        # Filter: Ignoriere Fehlmessungen der Kamera (z < 0.05m oder unendlich)
         z_cam = local_points[:, 2]
-
-        # Filter: Ignoriere Fehlmessungen der Kamera (0.0 oder unendlich)
-        valid = (z_cam > 0.05) & (z_cam < 3.0) & (~np.isnan(x_cam))
+        valid = (z_cam > 0.05) & (z_cam < 3.0) & (~np.isnan(local_points[:, 0]))
         if not np.any(valid):
             return
 
-        x_cam, y_cam, z_cam = x_cam[valid], y_cam[valid], z_cam[valid]
+        # Nur gültige 3D-Punkte behalten. Shape ist jetzt (N, 3)
+        valid_points = local_points[valid]
 
-        # 2. Globale Höhe (Z) berechnen
-        # Da die Kamera nach unten blickt, ist die Höhe des Objekts auf dem Tisch:
-        # Arm-Höhe minus Abstand von der Linse zum Objekt
-        global_z = arm_z - z_cam
+        # 2. 6DOF Transformation (Rotation)
+        # Wir bauen eine Rotationsmatrix aus deinen Winkeln.
+        # ACHTUNG: Die Reihenfolge ('xyz', 'zyx' etc.) hängt vom genauen
+        # Koordinatensystem deines Roboterarms ab! 'xyz' ist oft Standard.
+        rot_matrix = R.from_euler("xyz", [roll_deg, pitch_deg, yaw_deg], degrees=True)
 
-        # 3. Globale X/Y Koordinaten berechnen (Rotation durch Arm-Yaw + Translation)
-        yaw_rad = math.radians(yaw_deg)
-        cos_y, sin_y = math.cos(yaw_rad), math.sin(yaw_rad)
+        # Alle Punkte auf einen Schlag rotieren (schnelle C-Implementierung unter der Haube)
+        rotated_points = rot_matrix.apply(valid_points)
 
-        rot_x = x_cam * cos_y - y_cam * sin_y
-        rot_y = x_cam * sin_y + y_cam * cos_y
+        # 3. Translation (Arm-Position addieren)
+        # Wenn dein Kamera-Zentrum exakt auf dem Tool Center Point (TCP) liegt:
+        global_x = arm_x + rotated_points[:, 0]
+        global_y = arm_y + rotated_points[:, 1]
 
-        global_x = arm_x + rot_x
-        global_y = arm_y + rot_y
+        # WICHTIGER HINWEIS ZUR Z-ACHSE:
+        # Dein alter Code machte (arm_z - z_cam). Das bedeutet, die Z-Achse deiner Kamera
+        # zeigte genau in die entgegengesetzte Richtung der globalen Z-Achse (Kamera Z schaut
+        # auf den Tisch, Globale Z geht vom Tisch nach oben).
+        # Wenn deine neuen 6DOF-Winkel dieses umgedrehte Koordinatensystem schon
+        # berücksichtigen, machst du hier einfach ein '+'. Teste das am besten zuerst:
+        global_z = arm_z + rotated_points[:, 2]
 
         # 4. Umrechnung in Grid-Indizes
         grid_x = (global_x / self.grid_res).astype(int)
@@ -95,31 +108,31 @@ class RGBDSiteMapper:
             & (grid_y < self.grid_shape[0])
         )
 
-        gx, gy, gz = grid_x[bounds_mask], grid_y[bounds_mask], global_z[bounds_mask]
+        gx = grid_x[bounds_mask]
+        gy = grid_y[bounds_mask]
+        gz = global_z[bounds_mask]
+
         if len(gx) == 0:
             return
 
         # 6. Karten-Akkumulation
-        # Konfidenz hochzählen
         np.add.at(self.confidence_map, (gy, gx), 1.0)
-
-        # Maximale Höhe speichern (damit Rauschen oder Überlappungen die reale Höhe nicht verfälschen)
         np.maximum.at(self.elevation_map, (gy, gx), gz)
 
     def process_frame(
-        self, color_image, point_cloud_grid, arm_x, arm_y, arm_z, yaw_deg
+        self,
+        color_image,
+        point_cloud_grid,
+        arm_x,
+        arm_y,
+        arm_z,
+        roll_deg,
+        pitch_deg,
+        yaw_deg,  # NEU angepasst
     ):
-        """
-        Verarbeitet ein einzelnes Live-Frame aus deinem Roboter-Skript.
-
-        color_image: NumPy Array (RGB, Standard-Bild)
-        point_cloud_grid: NumPy Array Shape (H, W, 3) mit geordneten X,Y,Z-Werten in Metern
-        """
-        # Segmente finden
         masks = self.mask_generator.generate(color_image)
 
         for mask_data in masks:
-            # Kleine Rausch-Masken (kleiner als 400 Pixel) direkt aussortieren
             if mask_data["area"] < 400:
                 continue
 
@@ -129,6 +142,8 @@ class RGBDSiteMapper:
                 arm_x=arm_x,
                 arm_y=arm_y,
                 arm_z=arm_z,
+                roll_deg=roll_deg,
+                pitch_deg=pitch_deg,
                 yaw_deg=yaw_deg,
             )
 

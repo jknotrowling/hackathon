@@ -8,6 +8,12 @@ type ToolbarProps = {
   onDeleteRoi: () => void;
   selectedRegionName: string | null;
   saving: boolean;
+  showRoiTools?: boolean;
+  showFlightTools?: boolean;
+  flightPlanMode?: boolean;
+  onToggleFlightPlan?: () => void;
+  onPlanMappingFlights?: () => void;
+  planningMappingFlights?: boolean;
 };
 
 export function Toolbar({
@@ -18,31 +24,51 @@ export function Toolbar({
   onDeleteRoi,
   selectedRegionName,
   saving,
+  showRoiTools = false,
+  showFlightTools = false,
+  flightPlanMode = false,
+  onToggleFlightPlan,
+  onPlanMappingFlights,
+  planningMappingFlights = false,
 }: ToolbarProps) {
   return (
-    <Group justify="space-between" h="100%" px="md">
-      <div>
+    <Group justify="space-between" h="100%" px="md" wrap="nowrap">
+      <div style={{ minWidth: 0 }}>
         <Title order={4}>Construction Site Monitoring</Title>
-        <Text size="sm" c="dimmed">
+        <Text size="sm" c="dimmed" truncate>
           {projectName ?? 'Select a project'}
         </Text>
       </div>
 
-      <Group>
-        {selectedRegionName && (
+      <Group gap="sm" wrap="nowrap">
+        {showRoiTools && selectedRegionName && (
           <Text size="sm" c="dimmed">
-            Selected ROI: {selectedRegionName}
+            ROI: {selectedRegionName}
           </Text>
         )}
-        <Button variant={drawMode ? 'filled' : 'light'} onClick={onToggleDraw}>
-          {drawMode ? 'Stop Drawing' : 'Draw ROI'}
-        </Button>
-        <Button variant="light" onClick={onSaveRoi} loading={saving} disabled={!drawMode}>
-          Save ROI
-        </Button>
-        <ActionIcon variant="light" color="red" onClick={onDeleteRoi} disabled={!selectedRegionName}>
-          ✕
-        </ActionIcon>
+        {showRoiTools && selectedRegionName && onPlanMappingFlights && (
+          <Button variant="light" onClick={onPlanMappingFlights} loading={planningMappingFlights}>
+            Plan mapping flights
+          </Button>
+        )}
+        {showRoiTools && (
+          <>
+            <Button variant={drawMode ? 'filled' : 'light'} onClick={onToggleDraw}>
+              {drawMode ? 'Stop drawing' : 'Draw ROI'}
+            </Button>
+            <Button variant="light" onClick={onSaveRoi} loading={saving} disabled={!drawMode}>
+              Save ROI
+            </Button>
+            <ActionIcon variant="light" color="red" onClick={onDeleteRoi} disabled={!selectedRegionName}>
+              ✕
+            </ActionIcon>
+          </>
+        )}
+        {showFlightTools && onToggleFlightPlan && (
+          <Button variant={flightPlanMode ? 'filled' : 'light'} onClick={onToggleFlightPlan}>
+            {flightPlanMode ? 'Cancel flight planning' : 'Plan flight'}
+          </Button>
+        )}
       </Group>
     </Group>
   );

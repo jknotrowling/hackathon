@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import maplibregl, { Map, MapLayerMouseEvent } from 'maplibre-gl';
-import { TerraDraw } from 'terra-draw';
-import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter';
-import {
-  TerraDrawPolygonMode,
-  TerraDrawSelectMode,
-} from 'terra-draw';
+import maplibregl, { Map, MapLayerMouseEvent, MapMouseEvent } from 'maplibre-gl';
 
-import type { GeoJSONLineString, GeoJSONPolygon, Region, Stockpile, Survey } from '../../types';
+import type { Flight, GeoJSONLineString, GeoJSONPolygon, Region, Stockpile } from '../../types';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -15,11 +9,15 @@ type SiteMapProps = {
   boundary: GeoJSONPolygon | null;
   regions: Region[];
   stockpiles: Stockpile[];
-  surveys: Survey[];
+  flights: Flight[];
   drawMode: boolean;
+  flightPlanMode: boolean;
   selectedRegionId: number | null;
+  selectedFlightId: number | null;
   onSelectRegion: (regionId: number | null) => void;
+  onSelectFlight: (flightId: number | null) => void;
   onDraftGeometry: (geometry: GeoJSONPolygon | null) => void;
+  onDraftFlightPath: (geometry: GeoJSONLineString | null) => void;
   showFlightPaths: boolean;
 };
 
@@ -62,24 +60,190 @@ function lineToFeature(id: string | number, geometry: GeoJSONLineString, propert
   };
 }
 
+function flightPathToPointFeatures(flight: Flight) {
+  if (!flight.flight_path) {
+    return [];
+  }
+
+  return flight.flight_path.coordinates.map((coordinate, index) => ({
+    type: 'Feature' as const,
+    properties: {
+      id: flight.id,
+      status: flight.status,
+      name: flight.name,
+      index,
+    },
+    geometry: {
+      type: 'Point' as const,
+      coordinates: coordinate,
+    },
+  }));
+}
+
+function pointsToPolygon(points: [number, number][]): GeoJSONPolygon | null {
+  if (points.length < 3) {
+    return null;
+  }
+  const ring = [...points, points[0]];
+  return { type: 'Polygon', coordinates: [ring] };
+}
+
+function pointsToLineString(points: [number, number][]): GeoJSONLineString | null {
+  if (points.length < 2) {
+    return null;
+  }
+  return { type: 'LineString', coordinates: points };
+}
+
 export function SiteMap({
   boundary,
   regions,
   stockpiles,
-  surveys,
+  flights,
   drawMode,
+  flightPlanMode,
   selectedRegionId,
+  selectedFlightId,
   onSelectRegion,
+  onSelectFlight,
   onDraftGeometry,
+  onDraftFlightPath,
   showFlightPaths,
 }: SiteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
-  const drawRef = useRef<TerraDraw | null>(null);
+  const roiPointsRef = useRef<[number, number][]>([]);
+  const flightPointsRef = useRef<[number, number][]>([]);
+  const onSelectRegionRef = useRef(onSelectRegion);
+  const onSelectFlightRef = useRef(onSelectFlight);
+  const onDraftGeometryRef = useRef(onDraftGeometry);
+  const onDraftFlightPathRef = useRef(onDraftFlightPath);
   const [mapReady, setMapReady] = useState(false);
 
+  onSelectRegionRef.current = onSelectRegion;
+  onSelectFlightRef.current = onSelectFlight;
+  onDraftGeometryRef.current = onDraftGeometry;
+  onDraftFlightPathRef.current = onDraftFlightPath;
+
+  const updateDraftRoiLayer = (map: Map, points: [number, number][]) => {
+    const polygon = pointsToPolygon(points);
+    const lineCoordinates = points.length > 1 ? points : [];
+    const data: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        ...(polygon
+          ? [{ type: 'Feature' as const, properties: { kind: 'draft-fill' }, geometry: polygon }]
+          : []),
+        ...(lineCoordinates.length > 0
+          ? [{
+              type: 'Feature' as const,
+              properties: { kind: 'draft-line' },
+              geometry: { type: 'LineString' as const, coordinates: lineCoordinates },
+            }]
+          : []),
+        ...points.map((point, index) => ({
+          type: 'Feature' as const,
+          properties: { kind: 'draft-point', index },
+          geometry: { type: 'Point' as const, coordinates: point },
+        })),
+      ],
+    };
+
+    const source = map.getSource('draft-roi') as maplibregl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData(data);
+    } else {
+      map.addSource('draft-roi', { type: 'geojson', data });
+      map.addLayer({
+        id: 'draft-roi-fill',
+        type: 'fill',
+        source: 'draft-roi',
+        filter: ['==', ['get', 'kind'], 'draft-fill'],
+        paint: { 'fill-color': '#ffd43b', 'fill-opacity': 0.25 },
+      });
+      map.addLayer({
+        id: 'draft-roi-line',
+        type: 'line',
+        source: 'draft-roi',
+        filter: ['==', ['get', 'kind'], 'draft-line'],
+        paint: { 'line-color': '#ffd43b', 'line-width': 2, 'line-dasharray': [2, 2] },
+      });
+      map.addLayer({
+        id: 'draft-roi-points',
+        type: 'circle',
+        source: 'draft-roi',
+        filter: ['==', ['get', 'kind'], 'draft-point'],
+        paint: { 'circle-radius': 5, 'circle-color': '#ffd43b', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' },
+      });
+    }
+
+    onDraftGeometryRef.current(polygon);
+  };
+
+  const updateDraftFlightLayer = (map: Map, points: [number, number][]) => {
+    const line = pointsToLineString(points);
+    const data: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        ...(line
+          ? [{ type: 'Feature' as const, properties: { kind: 'draft-flight-line' }, geometry: line }]
+          : []),
+        ...points.map((point, index) => ({
+          type: 'Feature' as const,
+          properties: { kind: 'draft-flight-point', index },
+          geometry: { type: 'Point' as const, coordinates: point },
+        })),
+      ],
+    };
+
+    const source = map.getSource('draft-flight') as maplibregl.GeoJSONSource | undefined;
+    if (source) {
+      source.setData(data);
+    } else {
+      map.addSource('draft-flight', { type: 'geojson', data });
+      map.addLayer({
+        id: 'draft-flight-line',
+        type: 'line',
+        source: 'draft-flight',
+        filter: ['==', ['get', 'kind'], 'draft-flight-line'],
+        paint: { 'line-color': '#74c0fc', 'line-width': 3, 'line-dasharray': [2, 2] },
+      });
+      map.addLayer({
+        id: 'draft-flight-points',
+        type: 'circle',
+        source: 'draft-flight',
+        filter: ['==', ['get', 'kind'], 'draft-flight-point'],
+        paint: { 'circle-radius': 5, 'circle-color': '#74c0fc', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' },
+      });
+    }
+
+    onDraftFlightPathRef.current(line);
+  };
+
+  const clearDraftRoiLayer = (map: Map) => {
+    roiPointsRef.current = [];
+    onDraftGeometryRef.current(null);
+    if (map.getSource('draft-roi')) {
+      (map.getSource('draft-roi') as maplibregl.GeoJSONSource).setData({
+        type: 'FeatureCollection',
+        features: [],
+      });
+    }
+  };
+
+  const clearDraftFlightLayer = (map: Map) => {
+    flightPointsRef.current = [];
+    onDraftFlightPathRef.current(null);
+    if (map.getSource('draft-flight')) {
+      (map.getSource('draft-flight') as maplibregl.GeoJSONSource).setData({
+        type: 'FeatureCollection',
+        features: [],
+      });
+    }
+  };
+
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) {
+    if (!containerRef.current) {
       return;
     }
 
@@ -91,68 +255,118 @@ export function SiteMap({
     });
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-    const draw = new TerraDraw({
-      adapter: new TerraDrawMapLibreGLAdapter({ map }),
-      modes: [
-        new TerraDrawSelectMode({
-          flags: {
-            polygon: {
-              feature: {
-                draggable: true,
-                coordinates: {
-                  midpoints: true,
-                  draggable: true,
-                  deletable: true,
-                },
-              },
-            },
-          },
-        }),
-        new TerraDrawPolygonMode(),
-      ],
-    });
-
     map.on('load', () => {
-      draw.start();
-      draw.setMode('select');
       setMapReady(true);
+      requestAnimationFrame(() => map.resize());
     });
 
-    draw.on('finish', (id) => {
-      const snapshot = draw.getSnapshot();
-      const feature = snapshot.find((item) => String(item.id) === String(id));
-      if (feature && feature.geometry.type === 'Polygon') {
-        onDraftGeometry(feature.geometry as GeoJSONPolygon);
-      }
-    });
-
-    draw.on('change', () => {
-      const snapshot = draw.getSnapshot();
-      const draft = snapshot.find((feature) => feature.properties?.draft);
-      if (draft && draft.geometry.type === 'Polygon') {
-        onDraftGeometry(draft.geometry as GeoJSONPolygon);
-      }
-    });
-
-    map.on('click', 'roi-fill', (event: MapLayerMouseEvent) => {
-      const feature = event.features?.[0];
-      if (feature?.properties?.id) {
-        onSelectRegion(Number(feature.properties.id));
-      }
-    });
+    const container = containerRef.current;
+    const resizeObserver = new ResizeObserver(() => mapRef.current?.resize());
+    resizeObserver.observe(container);
 
     mapRef.current = map;
-    drawRef.current = draw;
 
     return () => {
-      draw.stop();
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
-      drawRef.current = null;
+      roiPointsRef.current = [];
+      flightPointsRef.current = [];
       setMapReady(false);
     };
-  }, [onDraftGeometry, onSelectRegion]);
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) {
+      return;
+    }
+
+    if (!drawMode) {
+      clearDraftRoiLayer(map);
+      if (!flightPlanMode) {
+        map.getCanvas().style.cursor = '';
+      }
+      if (!flightPlanMode) {
+        return;
+      }
+    }
+
+    if (drawMode) {
+      map.getCanvas().style.cursor = 'crosshair';
+
+      const handleClick = (event: MapMouseEvent) => {
+        roiPointsRef.current = [...roiPointsRef.current, [event.lngLat.lng, event.lngLat.lat]];
+        updateDraftRoiLayer(map, roiPointsRef.current);
+      };
+
+      const handleDoubleClick = (event: MapMouseEvent) => {
+        event.preventDefault();
+        const polygon = pointsToPolygon(roiPointsRef.current);
+        if (polygon) {
+          onDraftGeometryRef.current(polygon);
+        }
+      };
+
+      map.on('click', handleClick);
+      map.on('dblclick', handleDoubleClick);
+      map.doubleClickZoom.disable();
+
+      return () => {
+        map.off('click', handleClick);
+        map.off('dblclick', handleDoubleClick);
+        map.doubleClickZoom.enable();
+      };
+    }
+
+    return undefined;
+  }, [drawMode, flightPlanMode, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) {
+      return;
+    }
+
+    if (!flightPlanMode) {
+      clearDraftFlightLayer(map);
+      if (!drawMode) {
+        map.getCanvas().style.cursor = '';
+      }
+      if (!drawMode) {
+        return;
+      }
+    }
+
+    if (flightPlanMode) {
+      map.getCanvas().style.cursor = 'crosshair';
+
+      const handleClick = (event: MapMouseEvent) => {
+        flightPointsRef.current = [...flightPointsRef.current, [event.lngLat.lng, event.lngLat.lat]];
+        updateDraftFlightLayer(map, flightPointsRef.current);
+      };
+
+      const handleDoubleClick = (event: MapMouseEvent) => {
+        event.preventDefault();
+        const line = pointsToLineString(flightPointsRef.current);
+        if (line) {
+          onDraftFlightPathRef.current(line);
+        }
+      };
+
+      map.on('click', handleClick);
+      map.on('dblclick', handleDoubleClick);
+      map.doubleClickZoom.disable();
+
+      return () => {
+        map.off('click', handleClick);
+        map.off('dblclick', handleDoubleClick);
+        map.doubleClickZoom.enable();
+      };
+    }
+
+    return undefined;
+  }, [flightPlanMode, drawMode, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -191,10 +405,7 @@ export function SiteMap({
     upsertSource('rois', {
       type: 'FeatureCollection',
       features: regions.map((region) =>
-        polygonToFeature(region.id, region.geometry, {
-          id: region.id,
-          name: region.name,
-        }),
+        polygonToFeature(region.id, region.geometry, { id: region.id, name: region.name }),
       ),
     });
     upsertLayer({
@@ -202,12 +413,7 @@ export function SiteMap({
       type: 'fill',
       source: 'rois',
       paint: {
-        'fill-color': [
-          'case',
-          ['==', ['get', 'id'], selectedRegionId ?? -1],
-          '#ffd43b',
-          '#339af0',
-        ],
+        'fill-color': ['case', ['==', ['get', 'id'], selectedRegionId ?? -1], '#ffd43b', '#339af0'],
         'fill-opacity': 0.35,
       },
     });
@@ -244,31 +450,131 @@ export function SiteMap({
     });
 
     if (showFlightPaths) {
-      upsertSource('flights', {
-        type: 'FeatureCollection',
-        features: surveys
-          .filter((survey) => survey.flight_path)
-          .map((survey) =>
-            lineToFeature(survey.id, survey.flight_path!, {
-              id: survey.id,
-              date: survey.timestamp,
-            }),
-          ),
-      });
+      const flightFeatures = flights
+        .filter((flight) => flight.flight_path)
+        .map((flight) =>
+          lineToFeature(flight.id, flight.flight_path!, {
+            id: flight.id,
+            status: flight.status,
+            name: flight.name,
+          }),
+        );
+
+      const flightPointFeatures = flights.flatMap((flight) => flightPathToPointFeatures(flight));
+
+      upsertSource('flights', { type: 'FeatureCollection', features: flightFeatures });
+      upsertSource('flight-points', { type: 'FeatureCollection', features: flightPointFeatures });
+
+      if (!map.getLayer('flight-path-completed')) {
+        map.addLayer({
+          id: 'flight-path-completed',
+          type: 'line',
+          source: 'flights',
+          filter: ['==', ['get', 'status'], 'completed'],
+          paint: {
+            'line-color': [
+              'case',
+              ['==', ['get', 'id'], selectedFlightId ?? -1],
+              '#ffd43b',
+              '#51cf66',
+            ],
+            'line-width': ['case', ['==', ['get', 'id'], selectedFlightId ?? -1], 5, 3],
+          },
+        });
+      }
+
+      if (!map.getLayer('flight-path-planned')) {
+        map.addLayer({
+          id: 'flight-path-planned',
+          type: 'line',
+          source: 'flights',
+          filter: ['==', ['get', 'status'], 'planned'],
+          paint: {
+            'line-color': [
+              'case',
+              ['==', ['get', 'id'], selectedFlightId ?? -1],
+              '#ffd43b',
+              '#339af0',
+            ],
+            'line-width': ['case', ['==', ['get', 'id'], selectedFlightId ?? -1], 5, 3],
+            'line-dasharray': [2, 2],
+          },
+        });
+      }
+
       upsertLayer({
-        id: 'flight-path',
-        type: 'line',
-        source: 'flights',
-        paint: { 'line-color': '#51cf66', 'line-width': 3, 'line-dasharray': [2, 1] },
+        id: 'flight-points-completed',
+        type: 'circle',
+        source: 'flight-points',
+        filter: ['==', ['get', 'status'], 'completed'],
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'id'], selectedFlightId ?? -1], 3, 2],
+          'circle-color': [
+            'case',
+            ['==', ['get', 'id'], selectedFlightId ?? -1],
+            '#ffd43b',
+            '#51cf66',
+          ],
+          'circle-opacity': 0.9,
+        },
       });
-    } else if (map.getLayer('flight-path')) {
-      map.removeLayer('flight-path');
-      if (map.getSource('flights')) {
-        map.removeSource('flights');
+
+      upsertLayer({
+        id: 'flight-points-planned',
+        type: 'circle',
+        source: 'flight-points',
+        filter: ['==', ['get', 'status'], 'planned'],
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'id'], selectedFlightId ?? -1], 3, 2],
+          'circle-color': [
+            'case',
+            ['==', ['get', 'id'], selectedFlightId ?? -1],
+            '#ffd43b',
+            '#339af0',
+          ],
+          'circle-opacity': 0.9,
+        },
+      });
+
+      for (const [layerId, baseColor] of [
+        ['flight-points-completed', '#51cf66'],
+        ['flight-points-planned', '#339af0'],
+      ] as const) {
+        if (!map.getLayer(layerId)) {
+          continue;
+        }
+        map.setPaintProperty(layerId, 'circle-radius', [
+          'case',
+          ['==', ['get', 'id'], selectedFlightId ?? -1],
+          3,
+          2,
+        ]);
+        map.setPaintProperty(layerId, 'circle-color', [
+          'case',
+          ['==', ['get', 'id'], selectedFlightId ?? -1],
+          '#ffd43b',
+          baseColor,
+        ]);
+      }
+    } else {
+      for (const layerId of [
+        'flight-path-completed',
+        'flight-path-planned',
+        'flight-points-completed',
+        'flight-points-planned',
+      ]) {
+        if (map.getLayer(layerId)) {
+          map.removeLayer(layerId);
+        }
+      }
+      for (const sourceId of ['flights', 'flight-points']) {
+        if (map.getSource(sourceId)) {
+          map.removeSource(sourceId);
+        }
       }
     }
 
-    if (boundary) {
+    if (boundary && !drawMode && !flightPlanMode) {
       const coords = boundary.coordinates[0];
       const lngs = coords.map((coord) => coord[0]);
       const lats = coords.map((coord) => coord[1]);
@@ -280,15 +586,63 @@ export function SiteMap({
         { padding: 80, duration: 500 },
       );
     }
-  }, [boundary, regions, stockpiles, surveys, selectedRegionId, showFlightPaths, mapReady]);
+  }, [
+    boundary,
+    regions,
+    stockpiles,
+    flights,
+    selectedRegionId,
+    selectedFlightId,
+    showFlightPaths,
+    mapReady,
+    drawMode,
+    flightPlanMode,
+  ]);
 
   useEffect(() => {
-    const draw = drawRef.current;
-    if (!draw) {
+    const map = mapRef.current;
+    if (!map || !mapReady || drawMode || flightPlanMode) {
       return;
     }
-    draw.setMode(drawMode ? 'polygon' : 'select');
-  }, [drawMode]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+    const handleRoiClick = (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      if (feature?.properties?.id != null) {
+        onSelectRegionRef.current(Number(feature.properties.id));
+      }
+    };
+
+    const handleFlightClick = (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      if (feature?.properties?.id != null) {
+        onSelectFlightRef.current(Number(feature.properties.id));
+      }
+    };
+
+    if (map.getLayer('roi-fill')) {
+      map.on('click', 'roi-fill', handleRoiClick);
+    }
+    if (map.getLayer('flight-path-completed')) {
+      map.on('click', 'flight-path-completed', handleFlightClick);
+    }
+    if (map.getLayer('flight-path-planned')) {
+      map.on('click', 'flight-path-planned', handleFlightClick);
+    }
+    if (map.getLayer('flight-points-completed')) {
+      map.on('click', 'flight-points-completed', handleFlightClick);
+    }
+    if (map.getLayer('flight-points-planned')) {
+      map.on('click', 'flight-points-planned', handleFlightClick);
+    }
+
+    return () => {
+      map.off('click', 'roi-fill', handleRoiClick);
+      map.off('click', 'flight-path-completed', handleFlightClick);
+      map.off('click', 'flight-path-planned', handleFlightClick);
+      map.off('click', 'flight-points-completed', handleFlightClick);
+      map.off('click', 'flight-points-planned', handleFlightClick);
+    };
+  }, [mapReady, drawMode, flightPlanMode, regions, flights]);
+
+  return <div ref={containerRef} className="map-container" />;
 }

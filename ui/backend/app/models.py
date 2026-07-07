@@ -20,6 +20,7 @@ class Project(Base):
     regions: Mapped[list["Region"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     stockpiles: Mapped[list["Stockpile"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     surveys: Mapped[list["Survey"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    flights: Mapped[list["Flight"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
 class Region(Base):
@@ -72,3 +73,17 @@ class StockpileMeasurement(Base):
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     stockpile: Mapped["Stockpile"] = relationship(back_populates="measurements")
+
+
+class Flight(Base):
+    __tablename__ = "flights"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="planned")
+    flight_path: Mapped[str | None] = mapped_column(Geometry("LINESTRING", srid=4326))
+    notes: Mapped[str | None] = mapped_column(Text)
+    survey_id: Mapped[int | None] = mapped_column(ForeignKey("surveys.id", ondelete="SET NULL"))
+
+    project: Mapped["Project"] = relationship(back_populates="flights")

@@ -49,3 +49,5 @@ export interface Survey {
     volume: number;
   }>;
 }
+
+export type { Flight, FlightCreate, FlightStatus, FlightUpdate } from './flights';

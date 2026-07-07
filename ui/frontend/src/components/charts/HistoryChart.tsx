@@ -1,5 +1,4 @@
 import ReactECharts from 'echarts-for-react';
-import { Paper, Title } from '@mantine/core';
 import { useMemo } from 'react';
 
 import type { Stockpile, Survey } from '../../types';
@@ -8,9 +7,15 @@ type HistoryChartProps = {
   stockpiles: Stockpile[];
   surveys: Survey[];
   selectedStockpileId: number | null;
+  embedded?: boolean;
 };
 
-export function HistoryChart({ stockpiles, surveys, selectedStockpileId }: HistoryChartProps) {
+export function HistoryChart({
+  stockpiles,
+  surveys,
+  selectedStockpileId,
+  embedded = false,
+}: HistoryChartProps) {
   const option = useMemo(() => {
     const sortedSurveys = [...surveys].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
@@ -49,11 +54,9 @@ export function HistoryChart({ stockpiles, surveys, selectedStockpileId }: Histo
   }, [stockpiles, surveys, selectedStockpileId]);
 
   return (
-    <Paper p="md" radius={0} withBorder>
-      <Title order={5} mb="sm">
-        Stockpile History
-      </Title>
-      <ReactECharts option={option} style={{ height: 280 }} />
-    </Paper>
+    <ReactECharts
+      option={option}
+      style={{ height: embedded ? '100%' : 280, minHeight: embedded ? 180 : 280 }}
+    />
   );
 }

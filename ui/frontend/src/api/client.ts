@@ -1,4 +1,7 @@
 import type {
+  Flight,
+  FlightCreate,
+  FlightUpdate,
   GeoJSONPolygon,
   Project,
   Region,
@@ -53,4 +56,20 @@ export const api = {
     request<Stockpile[]>(`/api/projects/${projectId}/stockpiles`),
   getSurveys: (projectId: number) =>
     request<Survey[]>(`/api/projects/${projectId}/surveys`),
+  getFlights: (projectId: number) =>
+    request<Flight[]>(`/api/projects/${projectId}/flights`),
+  createFlight: (projectId: number, payload: FlightCreate) =>
+    request<Flight>(`/api/projects/${projectId}/flights`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateFlight: (flightId: number, payload: FlightUpdate) =>
+    request<Flight>(`/api/flights/${flightId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  deleteFlight: (flightId: number) =>
+    request<void>(`/api/flights/${flightId}`, { method: 'DELETE' }),
+  planMappingFlights: (regionId: number) =>
+    request<Flight[]>(`/api/rois/${regionId}/plan-flights`, { method: 'POST' }),
 };

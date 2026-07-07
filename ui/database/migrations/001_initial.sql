@@ -49,3 +49,15 @@ CREATE INDEX IF NOT EXISTS idx_regions_project_id ON regions(project_id);
 CREATE INDEX IF NOT EXISTS idx_stockpiles_project_id ON stockpiles(project_id);
 CREATE INDEX IF NOT EXISTS idx_surveys_project_id ON surveys(project_id);
 CREATE INDEX IF NOT EXISTS idx_measurements_stockpile_id ON stockpile_measurements(stockpile_id);
+
+CREATE TABLE IF NOT EXISTS flights (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'planned',
+    flight_path GEOMETRY(LINESTRING, 4326),
+    notes TEXT,
+    survey_id INTEGER REFERENCES surveys(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_flights_project_id ON flights(project_id);

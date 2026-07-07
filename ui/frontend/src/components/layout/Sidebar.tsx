@@ -1,30 +1,25 @@
-import { AppShell, Badge, Group, NavLink, Stack, Text, Title } from '@mantine/core';
-import { ReactNode } from 'react';
+import { AppShell, NavLink, Stack, Title } from '@mantine/core';
 
-import type { Project, Survey } from '../../types';
+import type { Project } from '../../types';
 
 type SidebarProps = {
   projects: Project[];
   selectedProjectId: number | null;
   onSelectProject: (id: number) => void;
-  surveys: Survey[];
   activePanel: 'sites' | 'flights' | 'history';
   onPanelChange: (panel: 'sites' | 'flights' | 'history') => void;
-  children?: ReactNode;
 };
 
 export function Sidebar({
   projects,
   selectedProjectId,
   onSelectProject,
-  surveys,
   activePanel,
   onPanelChange,
-  children,
 }: SidebarProps) {
   return (
     <AppShell.Navbar p="md" withBorder>
-      <Stack gap="md" h="100%">
+      <Stack gap="md">
         <div>
           <Title order={5}>Projects</Title>
           <Stack gap={4} mt="xs">
@@ -51,36 +46,18 @@ export function Sidebar({
             />
             <NavLink
               label="Flights"
-              description="Drone survey paths"
+              description="Past & upcoming flights"
               active={activePanel === 'flights'}
               onClick={() => onPanelChange('flights')}
             />
             <NavLink
               label="History"
-              description="Survey timeline"
+              description="Stockpile measurements"
               active={activePanel === 'history'}
               onClick={() => onPanelChange('history')}
             />
           </Stack>
         </div>
-
-        {activePanel === 'flights' && (
-          <Stack gap="xs">
-            <Text size="sm" fw={600}>
-              Recent flights
-            </Text>
-            {surveys.slice(0, 5).map((survey) => (
-              <Group key={survey.id} justify="space-between">
-                <Text size="xs">{new Date(survey.timestamp).toLocaleDateString()}</Text>
-                <Badge size="xs" variant="light">
-                  {survey.data_reference ?? `Survey ${survey.id}`}
-                </Badge>
-              </Group>
-            ))}
-          </Stack>
-        )}
-
-        {children}
       </Stack>
     </AppShell.Navbar>
   );

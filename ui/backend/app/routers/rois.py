@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.geo import geojson_to_wkt, wkt_to_geojson
 from app.models import Project, Region
-from app.schemas import RegionCreate, RegionResponse, RegionUpdate
+from app.routers.flights import _flight_response
+from app.schemas import FlightResponse, RegionCreate, RegionResponse, RegionUpdate
+from app.services.flight_planner import RegionNotFoundError, plan_mapping_flights
 
 router = APIRouter(tags=["regions"])
 
@@ -63,3 +65,12 @@ def delete_roi(region_id: int, db: Session = Depends(get_db)) -> None:
         raise HTTPException(status_code=404, detail="Region not found")
     db.delete(region)
     db.commit()
+
+
+@router.post("/api/rois/{region_id}/plan-flights", response_model=list[FlightResponse], status_code=201)
+def plan_region_mapping_flights(region_id: int, db: Session = Depends(get_db)) -> list[FlightResponse]:
+    try:
+        flights = plan_mapping_flights(db, region_id)
+    except RegionNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return [_flight_response(flight) for flight in flights]

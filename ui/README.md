@@ -4,7 +4,7 @@ Web-based construction site monitoring with drone survey visualization, ROI edit
 
 ## Architecture
 
-- **Frontend**: React + TypeScript + Vite, MapLibre GL JS, Terra Draw, Mantine, TanStack Query, ECharts
+- **Frontend**: React + TypeScript + Vite, MapLibre GL JS, Mantine, TanStack Query, ECharts
 - **Backend**: FastAPI + SQLAlchemy + PostGIS
 - **Database**: PostgreSQL with PostGIS extension
 
@@ -52,9 +52,10 @@ Set `VITE_API_URL=http://localhost:8000` if needed (default).
 
 1. MapLibre map with satellite imagery
 2. Example project with boundary, ROIs, stockpiles, and surveys
-3. Draw and save ROI polygons (Terra Draw)
-4. Display stockpile polygons and flight paths
+3. Draw and save ROI polygons (click-to-draw on map)
+4. Display stockpile polygons and flight paths (completed + planned)
 5. Stockpile table and historical volume charts
+6. Flight overview with upcoming/completed flights and flight planning
 
 ## API Endpoints
 
@@ -65,3 +66,5 @@ Set `VITE_API_URL=http://localhost:8000` if needed (default).
 - `PUT/DELETE /api/rois/{id}`
 - `GET /api/projects/{id}/stockpiles`
 - `GET /api/projects/{id}/surveys`
+- `GET/POST /api/projects/{id}/flights`
+- `PUT/DELETE /api/flights/{id}`

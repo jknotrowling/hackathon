@@ -1,4 +1,4 @@
-import { Badge, Paper, Table, Text, Title } from '@mantine/core';
+import { Badge, Table, Text } from '@mantine/core';
 
 import type { Stockpile } from '../../types';
 
@@ -6,18 +6,17 @@ type StockpileTableProps = {
   stockpiles: Stockpile[];
   selectedStockpileId: number | null;
   onSelectStockpile: (id: number | null) => void;
+  embedded?: boolean;
 };
 
 export function StockpileTable({
   stockpiles,
   selectedStockpileId,
   onSelectStockpile,
+  embedded = false,
 }: StockpileTableProps) {
-  return (
-    <Paper p="md" radius={0} withBorder>
-      <Title order={5} mb="sm">
-        Stockpiles
-      </Title>
+  const content = (
+    <>
       <Table highlightOnHover striped>
         <Table.Thead>
           <Table.Tr>
@@ -55,6 +54,12 @@ export function StockpileTable({
           No stockpiles available for this project.
         </Text>
       )}
-    </Paper>
+    </>
   );
+
+  if (embedded) {
+    return content;
+  }
+
+  return content;
 }

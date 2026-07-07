@@ -66,3 +66,28 @@ class SurveyResponse(BaseModel):
     orthophoto_url: str | None = None
     flight_path: dict[str, Any] | None = None
     stockpile_volumes: list[dict[str, Any]] = []
+
+
+class FlightCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    flight_path: GeoJSONLineString | None = None
+    notes: str | None = None
+
+
+class FlightUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    flight_path: GeoJSONLineString | None = None
+    notes: str | None = None
+    status: str | None = Field(default=None, pattern="^(planned|completed|cancelled)$")
+
+
+class FlightResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    name: str
+    status: str
+    flight_path: dict[str, Any] | None = None
+    notes: str | None = None
+    survey_id: int | None = None

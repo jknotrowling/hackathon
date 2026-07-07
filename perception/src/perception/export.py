@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 DEPTH_PNG_SCALE = 1000.0     # store depth as 16-bit PNG in millimeters (meters * 1000), the RealSense/Open3D convention
+DEPTH_PREVIEW_MAX_M = 2.0    # depth mapped to 0..255 over 0..this range for the human-viewable preview PNG
 
 
 def _rotation_to_quaternion(rotation: np.ndarray) -> list[float]:
@@ -49,9 +50,13 @@ def export_rgbd_frames(
     os.makedirs(out_dir, exist_ok=True)
     for i, (color_bgr, depth_m) in enumerate(frames):
         cv2.imwrite(os.path.join(out_dir, f"color_{i:04d}.png"), color_bgr)
+        # Lossless 16-bit depth in millimeters (the reload-friendly source of truth)...
         depth_mm = np.clip(depth_m * DEPTH_PNG_SCALE, 0, 65535).astype(np.uint16)
         cv2.imwrite(os.path.join(out_dir, f"depth_{i:04d}.png"), depth_mm)
-    print(f"[export] wrote {len(frames)} RGBD frame(s) to {out_dir}/ (color_*.png + depth_*.png, depth in mm)")
+        # ...plus an 8-bit normalized preview, since 16-bit mm depth looks nearly black in viewers.
+        preview = np.clip(depth_m / DEPTH_PREVIEW_MAX_M, 0.0, 1.0) * 255.0
+        cv2.imwrite(os.path.join(out_dir, f"depth_{i:04d}_preview.png"), preview.astype(np.uint8))
+    print(f"[export] wrote {len(frames)} RGBD frame(s) to {out_dir}/ (color_*.png + depth_*.png [16-bit mm] + depth_*_preview.png)")
 
     if camera_poses is not None:
         entries = []

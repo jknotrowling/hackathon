@@ -8,7 +8,7 @@ from monocular pose estimation.
 import cv2
 import numpy as np
 
-TAG_SIZE_M = 0.024                                  # default tag marker edge length, 24 mm
+TAG_SIZE_M = 0.03                                  # default tag marker edge length, 24 mm
 DICT = cv2.aruco.DICT_APRILTAG_25h9                 # marker family used on the base plate
 MIN_MARKER_PERIMETER_RATE = 0.01                    # default 0.03 misses small tags seen from further back
 ADAPTIVE_THRESH_WIN_SIZE_MAX = 53                   # default 23 struggles with uneven lighting

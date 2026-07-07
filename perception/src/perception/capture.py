@@ -81,7 +81,10 @@ def grab_frame(pipeline, align):
         convert_rgb_to_intensity=False,
     )
     pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, o3d_intrinsic)
-    return pcd, np.ascontiguousarray(color_bgr), intrinsics_matrix, depth_m
+    # .copy() is REQUIRED: np.asanyarray gives a view into the RealSense frame's
+    # internal buffer, which the SDK recycles on later grabs. Callers that keep the
+    # image around (e.g. to export after capture) would otherwise see it go black.
+    return pcd, color_bgr.copy(), intrinsics_matrix, depth_m
 
 
 def capture_rgbd(source: str, bag_path: str | None = None) -> o3d.geometry.PointCloud:

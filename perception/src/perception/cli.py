@@ -7,7 +7,6 @@ import numpy as np
 import open3d as o3d
 
 from perception.capture import WARMUP_FRAMES, capture_frame_corners, capture_rgbd, grab_frame, open_pipeline
-from perception.classify import HEAP_COLOR, STACK_COLOR
 from perception.export import export_rgbd_frames
 from perception.markers import TAG_SIZE_M, detect_tags_debug
 from perception.reporting import print_cluster_report
@@ -15,33 +14,9 @@ from perception.registration import align_and_merge
 from perception.segmentation import ABOVE_COLOR, cluster_heaps, preprocess, remove_ground
 from perception.viewer import run_viewer
 
-# TODO(export): when export.py exists, populate each cluster's manifest entry with
-# classification / classification_confidence / volume_m3 / volume_convex_hull_m3
-# (heap -> heightmap volume + hull sanity value; stack -> volumes null). Reuse the
-# ClusterClassification list returned by print_cluster_report below rather than
-# recomputing. "category" and "count" stay null (future stack-counting/material step).
-
-
-def _report_and_recolor(
-    clusters: list[o3d.geometry.PointCloud],
-    clusters_agg: o3d.geometry.PointCloud,
-    plane_model: tuple[float, float, float, float],
-) -> o3d.geometry.PointCloud:
-    """Print the cluster report, then rebuild the display aggregate with clusters
-    recolored by classification (blue=heap, orange=stack). Falls back to the original
-    aggregate if there are no clusters to recolor."""
-    classifications = print_cluster_report(clusters, plane_model)
-    if not classifications:
-        return clusters_agg
-
-    recolored_agg = o3d.geometry.PointCloud()
-    for cluster, classification in zip(clusters, classifications):
-        recolored = o3d.geometry.PointCloud(cluster)
-        recolored.paint_uniform_color(STACK_COLOR if classification.label == "stack" else HEAP_COLOR)
-        recolored_agg += recolored
-
-    print("[viewer] cluster colors: blue = heap, orange = stack")
-    return recolored_agg
+# TODO(export): when export.py grows a cluster manifest, populate each blob's entry
+# with volume_m3 / volume_convex_hull_m3, reusing the volume list returned by
+# print_cluster_report below rather than recomputing.
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,7 +132,7 @@ def _run_multi_live(num_frames: int, tag_size_m: float) -> None:
     print(f"Ground plane (a, b, c, d): {tuple(round(v, 4) for v in plane_model)}")
 
     clusters_agg, clusters = cluster_heaps(above)
-    clusters_agg = _report_and_recolor(clusters, clusters_agg, plane_model)
+    print_cluster_report(clusters, plane_model)
 
     # Save the captured pictures + each camera's pose relative to the anchor marker,
     # after the scene reconstruction has produced those poses.
@@ -192,7 +167,7 @@ def _run(args: argparse.Namespace) -> None:
     print(f"Ground plane (a, b, c, d): {tuple(round(v, 4) for v in plane_model)}")
 
     clusters_agg, clusters = cluster_heaps(above)
-    clusters_agg = _report_and_recolor(clusters, clusters_agg, plane_model)
+    print_cluster_report(clusters, plane_model)
 
     run_viewer(raw, preprocessed, ground, above, clusters_agg)
 

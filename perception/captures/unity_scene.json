@@ -1,0 +1,220 @@
+{
+  "frame_of_reference": "anchor marker (tabletop); positions map world -> anchor",
+  "units": "meters",
+  "instance_count": 11,
+  "blobs": [
+    {
+      "id": 0,
+      "position_xyz": [
+        0.2662673751335916,
+        -0.05890598103521348,
+        -0.021471961507895987
+      ],
+      "aabb_extent_xyz": [
+        0.13146085394939358,
+        0.15238950507879662,
+        0.04099764136122103
+      ],
+      "volume_m3": 0.00034606551304998287,
+      "material": "gravel",
+      "material_confidence": 0.9922711253166199,
+      "unit_type": "bulk",
+      "shape": null,
+      "estimated_count": null,
+      "shape_fit_error": null,
+      "num_views_used": 3,
+      "instances": []
+    },
+    {
+      "id": 1,
+      "position_xyz": [
+        0.1376078032979165,
+        -0.25413124434730966,
+        -0.02401403964707577
+      ],
+      "aabb_extent_xyz": [
+        0.15810750618421585,
+        0.06765136390933556,
+        0.045574340196594565
+      ],
+      "volume_m3": 0.00022888468451467698,
+      "material": "metal",
+      "material_confidence": 0.9993079702059428,
+      "unit_type": "discrete",
+      "shape": "i_beam",
+      "estimated_count": 3,
+      "shape_fit_error": 0.3296786806621017,
+      "num_views_used": 3,
+      "instances": [
+        {
+          "shape": "i_beam",
+          "position_xyz": [
+            0.1564120833258002,
+            -0.26631750110516345,
+            0.01
+          ],
+          "yaw_deg": 87.1514567098835
+        },
+        {
+          "shape": "i_beam",
+          "position_xyz": [
+            0.13643679549827856,
+            -0.2653235814868515,
+            0.01
+          ],
+          "yaw_deg": 87.1514567098835
+        },
+        {
+          "shape": "i_beam",
+          "position_xyz": [
+            0.1164615076707569,
+            -0.26432966186853957,
+            0.01
+          ],
+          "yaw_deg": 87.1514567098835
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "position_xyz": [
+        0.11003080691990424,
+        0.029215372521049478,
+        -0.016466000427488803
+      ],
+      "aabb_extent_xyz": [
+        0.06437551238967634,
+        0.0587866943047312,
+        0.01849989845757627
+      ],
+      "volume_m3": 5.302268048294072e-05,
+      "material": "metal",
+      "material_confidence": 0.9887007673581442,
+      "unit_type": "discrete",
+      "shape": "brick",
+      "estimated_count": 2,
+      "shape_fit_error": 0.31974227112865616,
+      "num_views_used": 3,
+      "instances": [
+        {
+          "shape": "brick",
+          "position_xyz": [
+            0.1275029213442936,
+            0.024271812578329194,
+            0.01
+          ],
+          "yaw_deg": 106.64823335422842
+        },
+        {
+          "shape": "brick",
+          "position_xyz": [
+            0.11604312088119795,
+            0.06259508192406786,
+            0.01
+          ],
+          "yaw_deg": 106.64823335422842
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "position_xyz": [
+        0.08334757035927068,
+        -0.09368611548923467,
+        -0.038426761132410114
+      ],
+      "aabb_extent_xyz": [
+        0.0527223310730308,
+        0.050425443972105605,
+        0.038234544895361544
+      ],
+      "volume_m3": 9.893755590823803e-05,
+      "material": "metal",
+      "material_confidence": 0.6567315459251404,
+      "unit_type": "discrete",
+      "shape": "brick",
+      "estimated_count": 4,
+      "shape_fit_error": 0.3285180709854121,
+      "num_views_used": 3,
+      "instances": [
+        {
+          "shape": "brick",
+          "position_xyz": [
+            0.10160551005566426,
+            -0.09051993117083905,
+            0.01
+          ],
+          "yaw_deg": 130.31115869446617
+        },
+        {
+          "shape": "brick",
+          "position_xyz": [
+            0.08635466307428497,
+            -0.10345869719973662,
+            0.01
+          ],
+          "yaw_deg": 130.31115869446617
+        },
+        {
+          "shape": "brick",
+          "position_xyz": [
+            0.07110381609290567,
+            -0.11639746322863419,
+            0.01
+          ],
+          "yaw_deg": 130.31115869446617
+        },
+        {
+          "shape": "brick",
+          "position_xyz": [
+            0.10160551005566426,
+            -0.09051993117083905,
+            0.03
+          ],
+          "yaw_deg": 130.31115869446617
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "position_xyz": [
+        0.30874316673401914,
+        -0.22564112281868948,
+        -0.015096643474458549
+      ],
+      "aabb_extent_xyz": [
+        0.06225047172368284,
+        0.06032924726294017,
+        0.01682100917423246
+      ],
+      "volume_m3": 5.097742081317887e-05,
+      "material": "metal",
+      "material_confidence": 0.9879360596338908,
+      "unit_type": "discrete",
+      "shape": "brick",
+      "estimated_count": 2,
+      "shape_fit_error": 0.2302621605765749,
+      "num_views_used": 3,
+      "instances": [
+        {
+          "shape": "brick",
+          "position_xyz": [
+            0.32644165159045707,
+            -0.2272515309747444,
+            0.01
+          ],
+          "yaw_deg": 120.85852006568592
+        },
+        {
+          "shape": "brick",
+          "position_xyz": [
+            0.3092729222927683,
+            -0.2375099292075429,
+            0.01
+          ],
+          "yaw_deg": 120.85852006568592
+        }
+      ]
+    }
+  ]
+}

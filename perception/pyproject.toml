@@ -7,6 +7,7 @@ dependencies = [
     "pyrealsense2>=2.55",
     "numpy>=1.24,<2.0",
     "opencv-contrib-python>=4.11.0.86",
+    "open-clip-torch>=3.3.0",
 ]
 
 [project.scripts]

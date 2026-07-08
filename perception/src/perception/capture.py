@@ -104,14 +104,15 @@ def capture_rgbd(source: str, bag_path: str | None = None) -> o3d.geometry.Point
 
 def capture_frame_corners(
     pipeline, align,
-) -> tuple[o3d.geometry.PointCloud, dict[int, np.ndarray], np.ndarray, np.ndarray, dict[int, np.ndarray]]:
+) -> tuple[o3d.geometry.PointCloud, dict[int, np.ndarray], np.ndarray, np.ndarray, np.ndarray, dict[int, np.ndarray]]:
     """Grab one frame, detect markers, and back-project their corners to 3D camera points.
 
     Returns (point cloud in camera frame, {tag_id: (4,3) camera-frame corners with valid
-    depth}, BGR image, depth map in meters, {tag_id: (4,2) image corners}). The 3D corners
-    are what the aligner matches across frames; color+depth are what gets exported per frame.
+    depth}, BGR image, depth map in meters, 3x3 intrinsics, {tag_id: (4,2) image corners}).
+    The 3D corners are what the aligner matches across frames; color+depth are exported per
+    frame; the intrinsics let clusters be re-projected into these frames for classification.
     """
     pcd, color_bgr, intrinsics_matrix, depth_m = grab_frame(pipeline, align)
     detections = detect_tags(color_bgr)
     cam_corners = deproject_corners(detections, depth_m, intrinsics_matrix)
-    return pcd, cam_corners, color_bgr, depth_m, detections
+    return pcd, cam_corners, color_bgr, depth_m, intrinsics_matrix, detections

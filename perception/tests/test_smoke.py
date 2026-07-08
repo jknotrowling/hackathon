@@ -3,12 +3,18 @@ No RealSense hardware required."""
 import numpy as np
 
 import perception.alignment
+import perception.arithmetic
 import perception.capture
+import perception.classify_image
 import perception.cli
+import perception.digital_twin
 import perception.export
+import perception.export_unity
+import perception.project_cluster
 import perception.registration
 import perception.reporting
 import perception.segmentation
+import perception.topdown
 import perception.viewer
 
 
@@ -27,6 +33,15 @@ def test_modules_expose_expected_callables() -> None:
     assert callable(perception.registration.global_marker_alignment)
     assert callable(perception.registration.anchor_frame)
     assert callable(perception.export.export_rgbd_frames)
+    assert callable(perception.topdown.export_topdown_grid)
+    assert callable(perception.arithmetic.estimate_shape_and_count)
+    assert callable(perception.arithmetic.count_units)
+    assert callable(perception.digital_twin.place_units)
+    assert callable(perception.classify_image.classify_crop_multiview)
+    assert callable(perception.classify_image.classify_crop)
+    assert callable(perception.project_cluster.rank_frames_for_cluster)
+    assert callable(perception.project_cluster.pick_best_frame_for_cluster)
+    assert callable(perception.export_unity.export_unity_scene)
     assert callable(perception.cli.main)
 
 

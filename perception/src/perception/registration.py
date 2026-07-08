@@ -114,22 +114,23 @@ def _corner_residual_mm(observed: dict[int, np.ndarray], transform: np.ndarray, 
 
 def align_and_merge(
     frames: list[tuple[o3d.geometry.PointCloud, dict[int, np.ndarray]]], output_voxel_m: float = OUTPUT_VOXEL_M
-) -> tuple[o3d.geometry.PointCloud, list[np.ndarray | None]]:
+) -> tuple[o3d.geometry.PointCloud, list[np.ndarray | None], np.ndarray]:
     """Globally align every frame via shared markers and merge the clouds.
 
     frames: list of (point cloud in camera frame, {tag_id: (4,3) camera-frame corners}).
-    Returns (merged cloud in the world frame downsampled to output_voxel_m, camera_poses),
-    where camera_poses[i] is the 4x4 pose of frame i's camera expressed in the anchor
-    marker's frame (its rotation = camera orientation, its translation = camera position,
-    both relative to the anchor marker), or None for a frame that could not be placed.
+    Returns (merged cloud in the world frame downsampled to output_voxel_m, camera_poses,
+    world_from_anchor). camera_poses[i] is the 4x4 pose of frame i's camera expressed in the
+    anchor marker's frame (rotation = orientation, translation = position, both relative to
+    the anchor), or None if the frame could not be placed. world_from_anchor is the 4x4
+    mapping anchor-marker (tabletop) coordinates into the world frame (identity if unaligned).
     """
     if not frames:
-        return o3d.geometry.PointCloud(), []
+        return o3d.geometry.PointCloud(), [], np.eye(4)
 
     per_frame_corners = [snap_to_plane(cc) if cc else None for _pcd, cc in frames]
     if not any(per_frame_corners):
         print("[align] no markers with valid depth in any frame -- cannot align")
-        return o3d.geometry.PointCloud(), [None] * len(frames)
+        return o3d.geometry.PointCloud(), [None] * len(frames), np.eye(4)
 
     transforms, world_corners = global_marker_alignment(per_frame_corners)
     placed = sum(1 for t in transforms if t is not None)
@@ -150,6 +151,7 @@ def align_and_merge(
 
     # Re-express each camera pose relative to the anchor marker (world -> anchor).
     camera_poses: list[np.ndarray | None] = [None] * len(frames)
+    world_from_anchor = np.eye(4)
     if world_corners:
         anchor_id, world_from_anchor = anchor_frame(world_corners)
         anchor_from_world = np.linalg.inv(world_from_anchor)
@@ -165,4 +167,4 @@ def align_and_merge(
         merged = crop_below_plane(merged, centroid, normal, camera_side, UNDER_PLANE_MARGIN_M)
         print(f"[align] dropped {before - len(merged.points)} points >{UNDER_PLANE_MARGIN_M * 1000:.0f}mm under the marker plane")
 
-    return merged.voxel_down_sample(output_voxel_m), camera_poses
+    return merged.voxel_down_sample(output_voxel_m), camera_poses, world_from_anchor

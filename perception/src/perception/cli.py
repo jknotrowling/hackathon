@@ -6,17 +6,25 @@ import sys
 import numpy as np
 import open3d as o3d
 
+from perception.arithmetic import count_units
 from perception.capture import WARMUP_FRAMES, capture_frame_corners, capture_rgbd, grab_frame, open_pipeline
+from perception.classify_image import (
+    BLOB_MATERIAL_LABELS,
+    MAX_VIEWS_PER_BLOB,
+    SHAPE_LABELS,
+    UNIT_TYPE_LABELS,
+    classify_crop_multiview,
+)
+from perception.digital_twin import place_units
 from perception.export import export_rgbd_frames
+from perception.export_unity import BlobAnalysis, export_unity_scene
 from perception.markers import TAG_SIZE_M, detect_tags_debug
+from perception.project_cluster import crop_to_bbox, rank_frames_for_cluster
 from perception.reporting import print_cluster_report
 from perception.registration import align_and_merge
 from perception.segmentation import ABOVE_COLOR, cluster_heaps, preprocess, remove_ground
+from perception.topdown import export_topdown_grid
 from perception.viewer import run_viewer
-
-# TODO(export): when export.py grows a cluster manifest, populate each blob's entry
-# with volume_m3 / volume_convex_hull_m3, reusing the volume list returned by
-# print_cluster_report below rather than recomputing.
 
 
 def parse_args() -> argparse.Namespace:
@@ -66,6 +74,7 @@ def _run_multi_live(num_frames: int, tag_size_m: float) -> None:
     pipeline, align = open_pipeline("live")
     captured: list[tuple[o3d.geometry.PointCloud, dict[int, np.ndarray]]] = []
     rgbd_frames: list[tuple[np.ndarray, np.ndarray]] = []
+    frame_intrinsics: np.ndarray | None = None
     known_ids: set[int] = set()
 
     try:
@@ -101,7 +110,7 @@ def _run_multi_live(num_frames: int, tag_size_m: float) -> None:
                 if key != 32:  # not SPACE
                     continue
 
-                pcd, cam_corners, committed_color, committed_depth, _det = capture_frame_corners(pipeline, align)
+                pcd, cam_corners, committed_color, committed_depth, committed_K, _det = capture_frame_corners(pipeline, align)
                 if not cam_corners:
                     print("[capture] no markers with valid depth, retry")
                     continue
@@ -111,6 +120,7 @@ def _run_multi_live(num_frames: int, tag_size_m: float) -> None:
 
                 captured.append((pcd, cam_corners))
                 rgbd_frames.append((committed_color, committed_depth))
+                frame_intrinsics = committed_K            # constant across frames (same camera/resolution)
                 known_ids |= set(cam_corners)
                 print(f"[capture] frame {k + 1}: {len(cam_corners)} markers with depth | {len(known_ids)} known total")
                 k += 1
@@ -123,7 +133,7 @@ def _run_multi_live(num_frames: int, tag_size_m: float) -> None:
         return
 
     total_points_before = sum(len(pcd.points) for pcd, _ in captured)
-    merged, camera_poses = align_and_merge(captured)
+    merged, camera_poses, world_from_anchor = align_and_merge(captured)
     print(f"[merge] combined {num_frames} clouds, {total_points_before} -> {len(merged.points)} points after downsample")
 
     preprocessed = preprocess(merged)
@@ -132,7 +142,45 @@ def _run_multi_live(num_frames: int, tag_size_m: float) -> None:
     print(f"Ground plane (a, b, c, d): {tuple(round(v, 4) for v in plane_model)}")
 
     clusters_agg, clusters = cluster_heaps(above)
-    print_cluster_report(clusters, plane_model)
+    volumes = print_cluster_report(clusters, plane_model)
+
+    # Re-project each blob into every captured view for multi-view CLIP classification.
+    # A frame's pose in the world is world_from_anchor @ camera_pose (camera->anchor).
+    captured_frames = [
+        (color, world_from_anchor @ pose, frame_intrinsics)
+        for (color, _depth), pose in zip(rgbd_frames, camera_poses)
+        if pose is not None
+    ]
+
+    analyses: list[BlobAnalysis] = []
+    for i, cluster in enumerate(clusters):
+        ranked = rank_frames_for_cluster(cluster, captured_frames)
+        crops = [crop_to_bbox(color, bbox) for color, bbox, _score in ranked[:MAX_VIEWS_PER_BLOB]]
+        material, confidence = classify_crop_multiview(crops, BLOB_MATERIAL_LABELS)
+        print(f"[classify] blob {i}: material={material} ({confidence:.2f} conf, from {len(crops)} views)")
+
+        unit_type, _unit_type_conf = classify_crop_multiview(crops, UNIT_TYPE_LABELS)
+        instances: list = []
+        if unit_type == "discrete":
+            # CLIP identifies the shape visually; arithmetic just divides the volume by it.
+            shape, shape_conf = classify_crop_multiview(crops, SHAPE_LABELS)
+            count, fit_error = count_units(volumes[i], shape)
+            instances = place_units(cluster, shape, count, world_from_anchor)
+            print(f"[classify] blob {i}: unit_type=discrete, shape={shape} ({shape_conf:.2f} conf), estimated_count={count} (fit_error={fit_error:.3f}), placed {len(instances)} units")
+        else:
+            shape, count, fit_error = None, None, None
+            print(f"[classify] blob {i}: unit_type={unit_type} (no shape/count estimate)")
+
+        analyses.append(BlobAnalysis(
+            volume_m3=volumes[i], material=material, material_confidence=confidence,
+            unit_type=unit_type, shape=shape, estimated_count=count, shape_fit_error=fit_error,
+            num_views_used=len(crops), instances=instances,
+        ))
+
+    # Top-down tabletop grid of the blobs (viewer stage 4): each blob pixel encodes
+    # its blob id and height above the tabletop; non-blob pixels are dropped.
+    export_topdown_grid(clusters, world_from_anchor)
+    export_unity_scene(clusters, analyses, world_from_anchor)
 
     # Save the captured pictures + each camera's pose relative to the anchor marker,
     # after the scene reconstruction has produced those poses.

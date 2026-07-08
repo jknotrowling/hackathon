@@ -1,0 +1,108 @@
+{
+  "planned": [
+    {
+      "sku": "BRICK",
+      "x": 12.6,
+      "y": 12.6,
+      "yaw_deg": 0.0,
+      "footprint_m": [
+        1.2,
+        0.8
+      ],
+      "zone": "lager_ost",
+      "score": 4.529,
+      "usage": 0.9
+    },
+    {
+      "sku": "GRAVEL",
+      "x": 13.0,
+      "y": 11.0,
+      "yaw_deg": 0.0,
+      "footprint_m": [
+        2.0,
+        2.0
+      ],
+      "zone": "lager_ost",
+      "score": 4.193,
+      "usage": 0.7
+    },
+    {
+      "sku": "PALLET",
+      "x": 14.0,
+      "y": 12.6,
+      "yaw_deg": 0.0,
+      "footprint_m": [
+        1.2,
+        0.8
+      ],
+      "zone": "lager_ost",
+      "score": 1.909,
+      "usage": 0.15
+    },
+    {
+      "sku": "I_BEAM",
+      "x": 13.5,
+      "y": 9.55,
+      "yaw_deg": 0.0,
+      "footprint_m": [
+        3.0,
+        0.5
+      ],
+      "zone": "lager_ost",
+      "score": 2.728,
+      "usage": 0.3
+    },
+    {
+      "sku": "BRICK",
+      "x": 12.6,
+      "y": 8.7,
+      "yaw_deg": 0.0,
+      "footprint_m": [
+        1.2,
+        0.8
+      ],
+      "zone": "lager_ost",
+      "score": 5.438,
+      "usage": 0.9
+    },
+    {
+      "sku": "PALLET",
+      "x": 14.8,
+      "y": 11.6,
+      "yaw_deg": 0.0,
+      "footprint_m": [
+        1.2,
+        0.8
+      ],
+      "zone": "lager_ost",
+      "score": 2.34,
+      "usage": 0.15
+    },
+    {
+      "sku": "GRAVEL",
+      "x": 12.75,
+      "y": 7.35,
+      "yaw_deg": 0.0,
+      "footprint_m": [
+        1.5,
+        1.5
+      ],
+      "zone": "lager_ost",
+      "score": 5.236,
+      "usage": 0.7
+    },
+    {
+      "sku": "BRICK",
+      "x": 12.6,
+      "y": 6.0,
+      "yaw_deg": 0.0,
+      "footprint_m": [
+        1.2,
+        0.8
+      ],
+      "zone": "lager_ost",
+      "score": 6.667,
+      "usage": 0.9
+    }
+  ]
+}

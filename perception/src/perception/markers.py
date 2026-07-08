@@ -38,6 +38,6 @@ def detect_tags_debug(color_bgr: np.ndarray) -> tuple[dict[int, np.ndarray], int
     if ids is None:
         detections: dict[int, np.ndarray] = {}
     else:
-        detections = {int(tag_id[0]): corners[i].reshape(4, 2).astype(np.float64) for i, tag_id in enumerate(ids)}
+        detections = {int(tag_id): corners[i].reshape(4, 2).astype(np.float64) for i, tag_id in enumerate(np.ravel(ids))}
     num_rejected = 0 if rejected is None else len(rejected)
     return detections, num_rejected

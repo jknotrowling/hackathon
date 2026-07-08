@@ -14,8 +14,8 @@ def test_build_scene_geometries_counts_units_and_bulk() -> None:
         ]
     }
     geometries = build_scene_geometries(manifest)
-    # 1 coordinate frame + 1 bulk box + 2 unit boxes
-    assert len(geometries) == 4
+    # 1 coordinate frame + 1 tabletop slab + 1 bulk box + 2 unit boxes
+    assert len(geometries) == 5
 
 
 def test_build_scene_geometries_handles_empty_manifest() -> None:

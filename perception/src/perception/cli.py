@@ -15,7 +15,7 @@ from perception.classify_image import (
     UNIT_TYPE_LABELS,
     classify_crop_multiview,
 )
-from perception.digital_twin import place_units
+from perception.digital_twin import place_units, reconstruct_units
 from perception.export import export_rgbd_frames
 from perception.export_unity import BlobAnalysis, export_unity_scene
 from perception.markers import TAG_SIZE_M, detect_tags_debug
@@ -162,11 +162,19 @@ def _run_multi_live(num_frames: int, tag_size_m: float) -> None:
         unit_type, _unit_type_conf = classify_crop_multiview(crops, UNIT_TYPE_LABELS)
         instances: list = []
         if unit_type == "discrete":
-            # CLIP identifies the shape visually; arithmetic just divides the volume by it.
+            # CLIP identifies the shape visually; geometry drives count AND placement.
             shape, shape_conf = classify_crop_multiview(crops, SHAPE_LABELS)
-            count, fit_error = count_units(volumes[i], shape)
-            instances = place_units(cluster, shape, count, world_from_anchor)
-            print(f"[classify] blob {i}: unit_type=discrete, shape={shape} ({shape_conf:.2f} conf), estimated_count={count} (fit_error={fit_error:.3f}), placed {len(instances)} units")
+            volume_count, fit_error = count_units(volumes[i], shape)
+            instances = reconstruct_units(cluster, shape, world_from_anchor)
+            if instances:
+                count = len(instances)
+                print(f"[classify] blob {i}: unit_type=discrete, shape={shape} ({shape_conf:.2f} conf), "
+                      f"count={count} from layered geometry (volume est. {volume_count}, fit_error={fit_error:.3f})")
+            else:
+                count = volume_count
+                instances = place_units(cluster, shape, count, world_from_anchor)
+                print(f"[classify] blob {i}: unit_type=discrete, shape={shape} ({shape_conf:.2f} conf), "
+                      f"count={count} from volume (geometry reconstruction empty, grid fallback)")
         else:
             shape, count, fit_error = None, None, None
             print(f"[classify] blob {i}: unit_type={unit_type} (no shape/count estimate)")

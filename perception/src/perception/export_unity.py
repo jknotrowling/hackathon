@@ -41,9 +41,12 @@ def export_unity_scene(
 
     entries = []
     for i, (cluster, analysis) in enumerate(zip(clusters, analyses)):
-        center_world = np.asarray(cluster.get_center())
-        center_anchor = rotation @ center_world + translation
-        extent = cluster.get_axis_aligned_bounding_box().get_extent()
+        # Compute both centre and extent in the ANCHOR frame, so the AABB matches the
+        # tabletop axes the positions are expressed in (a world-frame AABB would be
+        # rotated relative to them and mis-size the box).
+        points_anchor = np.asarray(cluster.points) @ rotation.T + translation
+        center_anchor = points_anchor.mean(axis=0)
+        extent = points_anchor.max(axis=0) - points_anchor.min(axis=0) if len(points_anchor) else np.zeros(3)
         entries.append({
             "id": i,
             "position_xyz": [float(v) for v in center_anchor],

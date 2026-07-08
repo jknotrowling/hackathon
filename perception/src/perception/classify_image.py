@@ -19,7 +19,6 @@ CLIP_MODEL_NAME = "ViT-B-32"
 CLIP_PRETRAINED = "laion2b_s34b_b79k"
 
 BLOB_MATERIAL_LABELS = {
-    "wood": "a photo of wooden blocks",
     "metal": "a photo of metal parts",
     "dirt": "a photo of dirt or earthworks",
     "gravel": "a photo of gravel or crushed stone",
@@ -35,9 +34,9 @@ UNIT_TYPE_LABELS = {
 # arithmetic.count_units divides the volume by that shape's unit volume. This replaces
 # letting the arithmetic guess the shape (which biased every blob toward "1 large unit").
 SHAPE_LABELS = {
-    "pallet": "a photo of a flat rectangular wooden shipping pallet",
+    "pallet": "a photo of a flat rectangular metal shipping pallet",
     "i_beam": "a photo of a long metal I-beam girder",
-    "brick": "a photo of small rectangular bricks with holes",
+    "brick": "a photo of small rectangular bricks, can have holes",
 }
 
 _CLIP = None    # lazily-loaded (model, preprocess, tokenizer)

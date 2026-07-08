@@ -47,10 +47,31 @@ def _bulk_box(position: list[float], extent: list[float]) -> o3d.geometry.AxisAl
     return aabb
 
 
+def _tabletop_plane(blobs: list[dict]) -> o3d.geometry.TriangleMesh | None:
+    """A thin light-grey slab at z=0 spanning the scene footprint, for visual context."""
+    positions = [b["position_xyz"] for b in blobs]
+    for b in blobs:
+        positions.extend(inst["position_xyz"] for inst in b.get("instances", []))
+    if not positions:
+        return None
+    xy = np.asarray(positions)[:, :2]
+    lo = xy.min(axis=0) - 0.06
+    hi = xy.max(axis=0) + 0.06
+    slab = o3d.geometry.TriangleMesh.create_box(float(hi[0] - lo[0]), float(hi[1] - lo[1]), 0.002)
+    slab.translate((float(lo[0]), float(lo[1]), -0.002))
+    slab.paint_uniform_color((0.85, 0.85, 0.85))
+    slab.compute_vertex_normals()
+    return slab
+
+
 def build_scene_geometries(manifest: dict) -> list:
     """Build the list of Open3D geometries for a loaded manifest (no window opened)."""
     geometries: list = [o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)]
-    for blob in manifest.get("blobs", []):
+    blobs = manifest.get("blobs", [])
+    tabletop = _tabletop_plane(blobs)
+    if tabletop is not None:
+        geometries.append(tabletop)
+    for blob in blobs:
         if blob.get("instances"):
             for inst in blob["instances"]:
                 geometries.append(_unit_box(inst["shape"], inst["position_xyz"], inst["yaw_deg"]))
